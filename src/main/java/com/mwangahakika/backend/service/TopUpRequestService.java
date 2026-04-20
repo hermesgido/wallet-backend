@@ -2,8 +2,6 @@ package com.mwangahakika.backend.service;
 
 import java.util.List;
 
-import com.mwangahakika.backend.dto.AdminTopUpRequest;
-import com.mwangahakika.backend.dto.AdminTopUpResponse;
 import com.mwangahakika.backend.dto.CreateTopUpRequestRequest;
 import com.mwangahakika.backend.dto.ReviewTopUpRequestRequest;
 import com.mwangahakika.backend.dto.TopUpRequestResponse;
@@ -20,5 +18,4 @@ public interface TopUpRequestService {
     TopUpRequestResponse approve(Long adminUserId, Long requestId, ReviewTopUpRequestRequest request);
 
     TopUpRequestResponse reject(Long adminUserId, Long requestId, ReviewTopUpRequestRequest request);
-    AdminTopUpResponse adminTopUp(Long adminUserId, Long walletId, AdminTopUpRequest request);
 }
