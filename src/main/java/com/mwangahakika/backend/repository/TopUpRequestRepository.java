@@ -14,4 +14,6 @@ public interface TopUpRequestRepository extends JpaRepository<TopUpRequest, Long
     List<TopUpRequest> findByUserId(Long userId);
 
     List<TopUpRequest> findByStatus(TopUpRequestStatus status);
+    List<TopUpRequest> findByUserIdOrderByRequestedAtDesc(Long userId);
+    List<TopUpRequest> findByStatusOrderByRequestedAtAsc(TopUpRequestStatus status);
 }
