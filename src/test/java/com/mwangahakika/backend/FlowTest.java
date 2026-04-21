@@ -34,6 +34,7 @@ class FlowTest extends BaseIt {
 
         mvc.perform(post("/api/transfers")
                         .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", "transfer-1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(
                                 new TransferRequest(senderWallet.getId(), receiverWallet.getId(), new BigDecimal("1000.00")))))
@@ -83,10 +84,84 @@ class FlowTest extends BaseIt {
 
         mvc.perform(post("/api/transfers")
                         .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", "transfer-2")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(
                                 new TransferRequest(senderWallet.getId(), receiverWallet.getId(), new BigDecimal("500.00")))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Insufficient wallet balance."));
+    }
+
+    @Test
+    void transferIsIdempotent() throws Exception {
+        var sender = user("Sender", "sender@example.com", Role.USER);
+        var senderWallet = wallet(sender, "5000.00");
+        var receiver = user("Receiver", "receiver@example.com", Role.USER);
+        var receiverWallet = wallet(receiver, "1000.00");
+        var token = token(sender.getEmail());
+        var body = json.writeValueAsString(
+                new TransferRequest(senderWallet.getId(), receiverWallet.getId(), new BigDecimal("1000.00")));
+
+        mvc.perform(post("/api/transfers")
+                        .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", "transfer-replay")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("SUCCESS"));
+
+        mvc.perform(post("/api/transfers")
+                        .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", "transfer-replay")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("SUCCESS"));
+
+        assertEquals(new BigDecimal("4000.00"), wallets.findById(senderWallet.getId()).orElseThrow().getBalance());
+        assertEquals(new BigDecimal("2000.00"), wallets.findById(receiverWallet.getId()).orElseThrow().getBalance());
+        assertEquals(1, transfers.count());
+    }
+
+    @Test
+    void transferIdempotencyConflict() throws Exception {
+        var sender = user("Sender", "sender@example.com", Role.USER);
+        var senderWallet = wallet(sender, "5000.00");
+        var receiver = user("Receiver", "receiver@example.com", Role.USER);
+        var receiverWallet = wallet(receiver, "1000.00");
+        var token = token(sender.getEmail());
+
+        mvc.perform(post("/api/transfers")
+                        .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", "transfer-conflict")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(
+                                new TransferRequest(senderWallet.getId(), receiverWallet.getId(), new BigDecimal("1000.00")))))
+                .andExpect(status().isCreated());
+
+        mvc.perform(post("/api/transfers")
+                        .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", "transfer-conflict")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(
+                                new TransferRequest(senderWallet.getId(), receiverWallet.getId(), new BigDecimal("1500.00")))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Idempotency key has already been used with a different request."));
+    }
+
+    @Test
+    void transferRequiresIdempotencyKey() throws Exception {
+        var sender = user("Sender", "sender@example.com", Role.USER);
+        var senderWallet = wallet(sender, "5000.00");
+        var receiver = user("Receiver", "receiver@example.com", Role.USER);
+        var receiverWallet = wallet(receiver, "1000.00");
+        var token = token(sender.getEmail());
+
+        mvc.perform(post("/api/transfers")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(
+                                new TransferRequest(senderWallet.getId(), receiverWallet.getId(), new BigDecimal("1000.00")))))
+                .andExpect(status().isBadRequest());
     }
 }

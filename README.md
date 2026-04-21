@@ -123,20 +123,6 @@ Run a single test class:
 ./mvnw -Dtest=FlowTest test
 ```
 
-## Postman
-
-Postman files are included in `backend/postman`:
-
-- `Wallet-Backend.postman_collection.json`
-- `Wallet-Backend.local.postman_environment.json`
-
-Suggested order when testing:
-
-1. import the collection and environment
-2. run `Login Admin` and `Login User 1`
-3. run user or admin flows with the saved tokens
-4. update wallet IDs or request IDs in the environment if your local data differs
-
 ## Database structure
 
 The database tables:

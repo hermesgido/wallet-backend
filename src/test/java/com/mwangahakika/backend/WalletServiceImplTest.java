@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.Mockito.verify;
@@ -19,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.mwangahakika.backend.dto.AdminTopUpRequest;
 import com.mwangahakika.backend.dto.AdminTopUpResponse;
+import com.mwangahakika.backend.entity.IdempotencyRecord;
 import com.mwangahakika.backend.entity.User;
 import com.mwangahakika.backend.entity.Wallet;
 import com.mwangahakika.backend.entity.WalletTransaction;
@@ -30,6 +32,7 @@ import com.mwangahakika.backend.exception.ResourceNotFoundException;
 import com.mwangahakika.backend.repository.UserRepository;
 import com.mwangahakika.backend.repository.WalletRepository;
 import com.mwangahakika.backend.repository.WalletTransactionRepository;
+import com.mwangahakika.backend.service.IdempotencyService;
 import com.mwangahakika.backend.service.impl.WalletServiceImpl;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,6 +44,8 @@ class WalletServiceImplTest {
     private WalletTransactionRepository walletTransactionRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private IdempotencyService idempotencyService;
 
     @InjectMocks
     private WalletServiceImpl walletService;
@@ -66,10 +71,14 @@ class WalletServiceImplTest {
 
         when(walletRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(wallet));
         when(userRepository.findById(99L)).thenReturn(Optional.of(admin));
+        when(idempotencyService.begin(any(), any(), any(), any(), any()))
+                .thenAnswer(invocation -> IdempotencyService.IdempotencyStart.<AdminTopUpResponse>proceed(
+                        IdempotencyRecord.builder().id(1L).build()
+                ));
         when(walletTransactionRepository.save(any(WalletTransaction.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        AdminTopUpResponse response = walletService.adminTopUp(99L, 10L, request);
+        AdminTopUpResponse response = walletService.adminTopUp(99L, 10L, "key-1", request);
 
         assertEquals(10L, response.walletId());
         assertEquals(new BigDecimal("1000.00"), response.balanceBefore());
@@ -79,6 +88,7 @@ class WalletServiceImplTest {
 
         verify(walletRepository).save(wallet);
         verify(walletTransactionRepository).save(any(WalletTransaction.class));
+        verify(idempotencyService).complete(any(), anyInt(), any());
 
         ArgumentCaptor<WalletTransaction> txCaptor = ArgumentCaptor.forClass(WalletTransaction.class);
         verify(walletTransactionRepository).save(txCaptor.capture());
@@ -87,15 +97,19 @@ class WalletServiceImplTest {
 
     @Test
     void adminTopUp_shouldFail_whenWalletMissing() {
+        when(idempotencyService.begin(any(), any(), any(), any(), any()))
+                .thenAnswer(invocation -> IdempotencyService.IdempotencyStart.<AdminTopUpResponse>proceed(
+                        IdempotencyRecord.builder().id(1L).build()
+                ));
         when(walletRepository.findByIdForUpdate(10L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () ->
-                walletService.adminTopUp(99L, 10L, new AdminTopUpRequest(new BigDecimal("100.00"), null)));
+                walletService.adminTopUp(99L, 10L, "key-1", new AdminTopUpRequest(new BigDecimal("100.00"), null)));
     }
 
     @Test
     void adminTopUp_shouldFail_whenAmountInvalid() {
         assertThrows(IllegalArgumentException.class, () ->
-                walletService.adminTopUp(99L, 10L, new AdminTopUpRequest(BigDecimal.ZERO, null)));
+                walletService.adminTopUp(99L, 10L, "key-1", new AdminTopUpRequest(BigDecimal.ZERO, null)));
     }
 }

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import org.mockito.Mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -39,6 +40,7 @@ import com.mwangahakika.backend.repository.TransferRepository;
 import com.mwangahakika.backend.repository.UserRepository;
 import com.mwangahakika.backend.repository.WalletRepository;
 import com.mwangahakika.backend.repository.WalletTransactionRepository;
+import com.mwangahakika.backend.service.IdempotencyService;
 import com.mwangahakika.backend.service.impl.TransferServiceImpl;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,6 +54,8 @@ class TransferServiceImplTest {
     private WalletTransactionRepository walletTransactionRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private IdempotencyService idempotencyService;
 
     private TransferServiceImpl transferService;
 
@@ -71,7 +75,8 @@ class TransferServiceImplTest {
                 transferRepository,
                 walletTransactionRepository,
                 userRepository,
-                transferProperties
+                transferProperties,
+                idempotencyService
         );
 
         senderUser = User.builder()
@@ -120,7 +125,11 @@ class TransferServiceImplTest {
     @Test
     void transfer_shouldSucceed() {
         TransferRequest request = new TransferRequest(10L, 20L, new BigDecimal("1000.00"));
+        var start = IdempotencyService.IdempotencyStart.<TransferResponse>proceed(
+                com.mwangahakika.backend.entity.IdempotencyRecord.builder().id(1L).build()
+        );
 
+        when(idempotencyService.begin(any(), any(), any(), any(), any())).thenAnswer(invocation -> start);
         when(walletRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(senderWallet));
         when(walletRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(receiverWallet));
         when(userRepository.findById(1L)).thenReturn(Optional.of(senderUser));
@@ -134,7 +143,7 @@ class TransferServiceImplTest {
         when(walletTransactionRepository.save(any(WalletTransaction.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        TransferResponse response = transferService.transfer(1L, request);
+        TransferResponse response = transferService.transfer(1L, "key-1", request);
 
         assertNotNull(response);
         assertEquals(100L, response.transferId());
@@ -147,6 +156,7 @@ class TransferServiceImplTest {
         verify(transferRepository).save(any(Transfer.class));
         verify(walletRepository, times(2)).save(any(Wallet.class));
         verify(walletTransactionRepository, times(2)).save(any(WalletTransaction.class));
+        verify(idempotencyService).complete(any(), anyInt(), any());
 
         ArgumentCaptor<WalletTransaction> txCaptor = ArgumentCaptor.forClass(WalletTransaction.class);
         verify(walletTransactionRepository, times(2)).save(txCaptor.capture());
@@ -160,12 +170,16 @@ class TransferServiceImplTest {
     @Test
     void transfer_shouldFail_whenInsufficientBalance() {
         TransferRequest request = new TransferRequest(10L, 20L, new BigDecimal("6000.00"));
+        var start = IdempotencyService.IdempotencyStart.<TransferResponse>proceed(
+                com.mwangahakika.backend.entity.IdempotencyRecord.builder().id(1L).build()
+        );
 
+        when(idempotencyService.begin(any(), any(), any(), any(), any())).thenAnswer(invocation -> start);
         when(walletRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(senderWallet));
         when(walletRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(receiverWallet));
 
         assertThrows(InsufficientBalanceException.class, () ->
-                transferService.transfer(1L, request));
+                transferService.transfer(1L, "key-1", request));
 
         verify(transferRepository, never()).save(any());
         verify(walletTransactionRepository, never()).save(any());
@@ -174,12 +188,16 @@ class TransferServiceImplTest {
     @Test
     void transfer_shouldFail_whenSenderDoesNotOwnWallet() {
         TransferRequest request = new TransferRequest(10L, 20L, new BigDecimal("1000.00"));
+        var start = IdempotencyService.IdempotencyStart.<TransferResponse>proceed(
+                com.mwangahakika.backend.entity.IdempotencyRecord.builder().id(1L).build()
+        );
 
+        when(idempotencyService.begin(any(), any(), any(), any(), any())).thenAnswer(invocation -> start);
         when(walletRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(senderWallet));
         when(walletRepository.findByIdForUpdate(20L)).thenReturn(Optional.of(receiverWallet));
 
         assertThrows(UnauthorizedActionException.class, () ->
-                transferService.transfer(999L, request));
+                transferService.transfer(999L, "key-1", request));
 
         verify(transferRepository, never()).save(any());
     }
@@ -187,18 +205,26 @@ class TransferServiceImplTest {
     @Test
     void transfer_shouldFail_whenWalletNotFound() {
         TransferRequest request = new TransferRequest(10L, 20L, new BigDecimal("1000.00"));
+        var start = IdempotencyService.IdempotencyStart.<TransferResponse>proceed(
+                com.mwangahakika.backend.entity.IdempotencyRecord.builder().id(1L).build()
+        );
 
+        when(idempotencyService.begin(any(), any(), any(), any(), any())).thenAnswer(invocation -> start);
         when(walletRepository.findByIdForUpdate(10L)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class, () ->
-                transferService.transfer(1L, request));
+                transferService.transfer(1L, "key-1", request));
     }
 
     @Test
     void transfer_shouldFail_whenSameWallet() {
         TransferRequest request = new TransferRequest(10L, 10L, new BigDecimal("100.00"));
+        var start = IdempotencyService.IdempotencyStart.<TransferResponse>proceed(
+                com.mwangahakika.backend.entity.IdempotencyRecord.builder().id(1L).build()
+        );
 
+        when(idempotencyService.begin(any(), any(), any(), any(), any())).thenAnswer(invocation -> start);
         assertThrows(IllegalArgumentException.class, () ->
-                transferService.transfer(1L, request));
+                transferService.transfer(1L, "key-1", request));
     }
 }

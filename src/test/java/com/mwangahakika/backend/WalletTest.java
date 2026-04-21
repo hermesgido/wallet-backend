@@ -31,6 +31,7 @@ class WalletTest extends BaseIt {
 
         mvc.perform(post("/api/admin/wallets/{id}/top-up", wallet.getId())
                         .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", "top-up-1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(new AdminTopUpRequest(new BigDecimal("250.00"), "Test"))))
                 .andExpect(status().isOk())
@@ -50,9 +51,63 @@ class WalletTest extends BaseIt {
 
         mvc.perform(post("/api/admin/wallets/{id}/top-up", wallet.getId())
                         .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", "top-up-1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json.writeValueAsString(new AdminTopUpRequest(new BigDecimal("50.00"), null))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value("Access denied"));
+    }
+
+    @Test
+    void adminTopUpIsIdempotent() throws Exception {
+        var admin = user("Admin", "admin@example.com", Role.ADMIN);
+        wallet(admin, "0.00");
+        var user = user("User", "user@example.com", Role.USER);
+        var wallet = wallet(user, "500.00");
+        var token = token(admin.getEmail());
+        var request = json.writeValueAsString(new AdminTopUpRequest(new BigDecimal("250.00"), "Test"));
+
+        mvc.perform(post("/api/admin/wallets/{id}/top-up", wallet.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", "top-up-replay")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.balanceAfter").value(750.00));
+
+        mvc.perform(post("/api/admin/wallets/{id}/top-up", wallet.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", "top-up-replay")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.balanceAfter").value(750.00));
+
+        assertEquals(new BigDecimal("750.00"), wallets.findById(wallet.getId()).orElseThrow().getBalance());
+        assertEquals(1, txs.count());
+    }
+
+    @Test
+    void adminTopUpIdempotencyConflict() throws Exception {
+        var admin = user("Admin", "admin@example.com", Role.ADMIN);
+        wallet(admin, "0.00");
+        var user = user("User", "user@example.com", Role.USER);
+        var wallet = wallet(user, "500.00");
+        var token = token(admin.getEmail());
+
+        mvc.perform(post("/api/admin/wallets/{id}/top-up", wallet.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", "top-up-conflict")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(new AdminTopUpRequest(new BigDecimal("250.00"), "Test"))))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/admin/wallets/{id}/top-up", wallet.getId())
+                        .header("Authorization", "Bearer " + token)
+                        .header("Idempotency-Key", "top-up-conflict")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(new AdminTopUpRequest(new BigDecimal("300.00"), "Different"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.message").value("Idempotency key has already been used with a different request."));
     }
 }

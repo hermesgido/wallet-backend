@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.mwangahakika.backend.config.TransferProperties;
 import com.mwangahakika.backend.dto.TransferRequest;
 import com.mwangahakika.backend.dto.TransferResponse;
+import com.mwangahakika.backend.entity.IdempotencyRecord;
 import com.mwangahakika.backend.entity.Transfer;
 import com.mwangahakika.backend.entity.User;
 import com.mwangahakika.backend.entity.Wallet;
@@ -25,6 +26,7 @@ import com.mwangahakika.backend.repository.TransferRepository;
 import com.mwangahakika.backend.repository.UserRepository;
 import com.mwangahakika.backend.repository.WalletRepository;
 import com.mwangahakika.backend.repository.WalletTransactionRepository;
+import com.mwangahakika.backend.service.IdempotencyService;
 import com.mwangahakika.backend.service.TransferService;
 
 import lombok.RequiredArgsConstructor;
@@ -35,15 +37,32 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class TransferServiceImpl implements TransferService {
 
+    private static final String TRANSFER_ENDPOINT = "TRANSFER";
+
     private final WalletRepository walletRepository;
     private final TransferRepository transferRepository;
     private final WalletTransactionRepository walletTransactionRepository;
     private final UserRepository userRepository;
     private final TransferProperties transferProperties;
+    private final IdempotencyService idempotencyService;
 
     @Transactional
-    public TransferResponse transfer(Long authenticatedUserId, TransferRequest request) {
+    public TransferResponse transfer(Long authenticatedUserId, String idempotencyKey, TransferRequest request) {
+        validateIdempotencyKey(idempotencyKey);
         validateRequest(request);
+
+        var start = idempotencyService.begin(
+                idempotencyKey,
+                TRANSFER_ENDPOINT,
+                authenticatedUserId,
+                request,
+                TransferResponse.class
+        );
+
+        if (start.replay()) {
+            log.info("Transfer replayed from idempotency record: userId={}, key={}", authenticatedUserId, idempotencyKey);
+            return start.response();
+        }
 
         Long senderId = request.senderWalletId();
         Long receiverId = request.receiverWalletId();
@@ -143,7 +162,7 @@ public class TransferServiceImpl implements TransferService {
                 transfer.getAmount()
         );
 
-        return new TransferResponse(
+        TransferResponse response = new TransferResponse(
                 transfer.getId(),
                 transfer.getReference(),
                 transfer.getStatus().name(),
@@ -153,6 +172,8 @@ public class TransferServiceImpl implements TransferService {
                 transfer.getCreatedAt(),
                 transfer.getCompletedAt()
         );
+        idempotencyService.complete(start.record(), 201, response);
+        return response;
     }
 
     private void validateRequest(TransferRequest request) {
@@ -162,6 +183,12 @@ public class TransferServiceImpl implements TransferService {
 
         if (request.senderWalletId() == null || request.receiverWalletId() == null) {
             throw new IllegalArgumentException("Sender and receiver wallet IDs are required.");
+        }
+    }
+
+    private void validateIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new IllegalArgumentException("Idempotency-Key header is required.");
         }
     }
 

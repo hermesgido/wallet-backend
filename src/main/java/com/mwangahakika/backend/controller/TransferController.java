@@ -2,6 +2,7 @@ package com.mwangahakika.backend.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,8 +32,9 @@ public class TransferController {
     @Operation(summary = "Transfer funds from one wallet to another")
     public TransferResponse transfer(
             @AuthenticationPrincipal AuthenticatedUser user,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody TransferRequest request
     ) {
-        return transferService.transfer(user.getId(), request);
+        return transferService.transfer(user.getId(), idempotencyKey, request);
     }
 }

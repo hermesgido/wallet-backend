@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -52,6 +53,13 @@ public class GlobalExceptionHandler {
                 "Validation error",
                 message
         );
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiErrorResponse> handleMissingHeader(MissingRequestHeaderException ex) {
+        String message = ex.getHeaderName() + " header is required.";
+        log.warn("Missing request header: {}", message);
+        return buildResponse(HttpStatus.BAD_REQUEST, "Invalid request", message);
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)

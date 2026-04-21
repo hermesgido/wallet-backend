@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.mwangahakika.backend.dto.AdminTopUpRequest;
 import com.mwangahakika.backend.dto.AdminTopUpResponse;
+import com.mwangahakika.backend.entity.IdempotencyRecord;
 import com.mwangahakika.backend.entity.User;
 import com.mwangahakika.backend.entity.Wallet;
 import com.mwangahakika.backend.entity.WalletTransaction;
@@ -18,6 +19,7 @@ import com.mwangahakika.backend.exception.ResourceNotFoundException;
 import com.mwangahakika.backend.repository.UserRepository;
 import com.mwangahakika.backend.repository.WalletRepository;
 import com.mwangahakika.backend.repository.WalletTransactionRepository;
+import com.mwangahakika.backend.service.IdempotencyService;
 import com.mwangahakika.backend.service.WalletService;
 
 import lombok.RequiredArgsConstructor;
@@ -28,17 +30,36 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class WalletServiceImpl implements WalletService {
 
+    private static final String ADMIN_TOP_UP_ENDPOINT = "ADMIN_WALLET_TOP_UP";
+
     private final WalletRepository walletRepository;
     private final WalletTransactionRepository walletTransactionRepository;
     private final UserRepository userRepository;
+    private final IdempotencyService idempotencyService;
 
     @Override
     @Transactional
-    public AdminTopUpResponse adminTopUp(Long adminUserId, Long walletId, AdminTopUpRequest request) {
+    public AdminTopUpResponse adminTopUp(Long adminUserId, Long walletId, String idempotencyKey, AdminTopUpRequest request) {
+        validateIdempotencyKey(idempotencyKey);
+
         if (request.amount() == null || request.amount().compareTo(BigDecimal.ZERO) <= 0) {
             log.warn("Admin top-up rejected because amount is invalid: adminUserId={}, walletId={}, amount={}",
                     adminUserId, walletId, request.amount());
             throw new IllegalArgumentException("Top-up amount must be greater than zero.");
+        }
+
+        var start = idempotencyService.begin(
+                idempotencyKey,
+                ADMIN_TOP_UP_ENDPOINT,
+                adminUserId,
+                new AdminTopUpFingerprint(walletId, request.amount(), request.note()),
+                AdminTopUpResponse.class
+        );
+
+        if (start.replay()) {
+            log.info("Admin top-up replayed from idempotency record: adminUserId={}, walletId={}, key={}",
+                    adminUserId, walletId, idempotencyKey);
+            return start.response();
         }
 
         Wallet wallet = walletRepository.findByIdForUpdate(walletId)
@@ -82,7 +103,7 @@ public class WalletServiceImpl implements WalletService {
         log.info("Admin top-up completed: adminUserId={}, walletId={}, amount={}, reference={}",
                 adminUserId, wallet.getId(), request.amount(), reference);
 
-        return new AdminTopUpResponse(
+        AdminTopUpResponse response = new AdminTopUpResponse(
                 wallet.getId(),
                 request.amount(),
                 balanceBefore,
@@ -91,6 +112,18 @@ public class WalletServiceImpl implements WalletService {
                 now,
                 "Wallet top-up completed successfully."
         );
+
+        idempotencyService.complete(start.record(), 200, response);
+        return response;
+    }
+
+    private void validateIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            throw new IllegalArgumentException("Idempotency-Key header is required.");
+        }
+    }
+
+    private record AdminTopUpFingerprint(Long walletId, BigDecimal amount, String note) {
     }
 
     private String generateReference() {

@@ -5,5 +5,5 @@ import com.mwangahakika.backend.dto.AdminTopUpResponse;
 
 public interface WalletService {
 
-    AdminTopUpResponse adminTopUp(Long adminUserId, Long walletId, AdminTopUpRequest request);
+    AdminTopUpResponse adminTopUp(Long adminUserId, Long walletId, String idempotencyKey, AdminTopUpRequest request);
 }

@@ -2,6 +2,7 @@ package com.mwangahakika.backend.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -33,8 +34,9 @@ public class WalletController {
     public AdminTopUpResponse topUp(
             @AuthenticationPrincipal AuthenticatedUser user,
             @PathVariable Long walletId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody AdminTopUpRequest request
     ) {
-        return walletService.adminTopUp(user.getId(), walletId, request);
+        return walletService.adminTopUp(user.getId(), walletId, idempotencyKey, request);
     }
 }
