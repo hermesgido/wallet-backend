@@ -22,6 +22,13 @@ app:
   jwt:
     secret: ${JWT_SECRET:ZwHb76tYhO6UCtde6fdjaMkYS5SeLfruZ0LOB6WyOuY=}
     expiration: ${JWT_EXPIRATION:86400000}
+  transfer:
+    min-amount: 100.00
+    max-amount: 10000000.00
+  rate-limit:
+    login:
+      max-attempts: 5
+      window-seconds: 60
 
 server:
   port: ${SERVER_PORT:8080}

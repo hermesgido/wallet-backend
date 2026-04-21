@@ -14,7 +14,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import static org.mockito.ArgumentMatchers.any;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -22,6 +21,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.mwangahakika.backend.config.TransferProperties;
 import com.mwangahakika.backend.dto.TransferRequest;
 import com.mwangahakika.backend.dto.TransferResponse;
 import com.mwangahakika.backend.entity.Transfer;
@@ -53,7 +53,6 @@ class TransferServiceImplTest {
     @Mock
     private UserRepository userRepository;
 
-    @InjectMocks
     private TransferServiceImpl transferService;
 
     private User senderUser;
@@ -63,6 +62,18 @@ class TransferServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        TransferProperties transferProperties = new TransferProperties(
+                new BigDecimal("100.00"),
+                new BigDecimal("10000000.00")
+        );
+        transferService = new TransferServiceImpl(
+                walletRepository,
+                transferRepository,
+                walletTransactionRepository,
+                userRepository,
+                transferProperties
+        );
+
         senderUser = User.builder()
                 .id(1L)
                 .fullName("User One")

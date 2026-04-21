@@ -23,6 +23,7 @@ import com.mwangahakika.backend.repository.TransferRepository;
 import com.mwangahakika.backend.repository.UserRepository;
 import com.mwangahakika.backend.repository.WalletRepository;
 import com.mwangahakika.backend.repository.WalletTransactionRepository;
+import com.mwangahakika.backend.security.LoginRateLimitService;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -57,7 +58,11 @@ abstract class BaseIt {
     @Autowired
     protected PasswordEncoder encoder;
 
+    @Autowired
+    protected LoginRateLimitService loginRateLimitService;
+
     protected void resetDb() {
+        loginRateLimitService.reset();
         txs.deleteAll();
         transfers.deleteAll();
         topUps.deleteAll();

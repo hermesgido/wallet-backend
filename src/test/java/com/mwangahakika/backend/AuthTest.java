@@ -50,4 +50,22 @@ class AuthTest extends BaseIt {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("Authentication required"));
     }
+
+    @Test
+    void loginRateLimit() throws Exception {
+        wallet(user("Jane", "jane@example.com", Role.USER), "1000.00");
+
+        for (int i = 0; i < 5; i++) {
+            mvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json.writeValueAsString(new LoginRequest("jane@example.com", "wrong-password"))))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        mvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(new LoginRequest("jane@example.com", "wrong-password"))))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.message").value("Too many login attempts. Please try again later."));
+    }
 }

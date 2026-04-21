@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.mwangahakika.backend.config.TransferProperties;
 import com.mwangahakika.backend.dto.TransferRequest;
 import com.mwangahakika.backend.dto.TransferResponse;
 import com.mwangahakika.backend.entity.Transfer;
@@ -34,13 +35,11 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class TransferServiceImpl implements TransferService {
 
-    private static final BigDecimal MIN_TRANSFER_AMOUNT = new BigDecimal("1.00");
-    private static final BigDecimal MAX_TRANSFER_AMOUNT = new BigDecimal("1000000.00");
-
     private final WalletRepository walletRepository;
     private final TransferRepository transferRepository;
     private final WalletTransactionRepository walletTransactionRepository;
     private final UserRepository userRepository;
+    private final TransferProperties transferProperties;
 
     @Transactional
     public TransferResponse transfer(Long authenticatedUserId, TransferRequest request) {
@@ -196,13 +195,16 @@ public class TransferServiceImpl implements TransferService {
     }
 
     private void validateTransferAmount(BigDecimal amount, BigDecimal senderBalance) {
-        if (amount.compareTo(MIN_TRANSFER_AMOUNT) < 0) {
-            log.warn("Transfer rejected because amount is below minimum: amount={}, minimum={}", amount, MIN_TRANSFER_AMOUNT);
+        BigDecimal minAmount = transferProperties.minAmount();
+        BigDecimal maxAmount = transferProperties.maxAmount();
+
+        if (amount.compareTo(minAmount) < 0) {
+            log.warn("Transfer rejected because amount is below minimum: amount={}, minimum={}", amount, minAmount);
             throw new IllegalArgumentException("Transfer amount is below the minimum allowed.");
         }
 
-        if (amount.compareTo(MAX_TRANSFER_AMOUNT) > 0) {
-            log.warn("Transfer rejected because amount exceeds maximum: amount={}, maximum={}", amount, MAX_TRANSFER_AMOUNT);
+        if (amount.compareTo(maxAmount) > 0) {
+            log.warn("Transfer rejected because amount exceeds maximum: amount={}, maximum={}", amount, maxAmount);
             throw new IllegalArgumentException("Transfer amount exceeds the maximum allowed.");
         }
 
