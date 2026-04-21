@@ -1,17 +1,17 @@
 spring:
   profiles:
-    active: dev
+    active: ${SPRING_PROFILES_ACTIVE:dev}
   application:
     name: backend
   datasource:
-    url: jdbc:postgresql://localhost:5432/walletdb
-    username: walletdbuser
-    password: walletdbpass
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/walletdb}
+    username: ${DB_USERNAME:walletdbuser}
+    password: ${DB_PASSWORD:walletdbpass}
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: ${JPA_SHOW_SQL:true}
     properties:
       hibernate:
         format_sql: true
@@ -20,8 +20,8 @@ spring:
     locations: classpath:db/migration
 app:
   jwt:
-    secret: ZwHb76tYhO6UCtde6fdjaMkYS5SeLfruZ0LOB6WyOuY=
-    expiration: 86400000
+    secret: ${JWT_SECRET:ZwHb76tYhO6UCtde6fdjaMkYS5SeLfruZ0LOB6WyOuY=}
+    expiration: ${JWT_EXPIRATION:86400000}
 
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
