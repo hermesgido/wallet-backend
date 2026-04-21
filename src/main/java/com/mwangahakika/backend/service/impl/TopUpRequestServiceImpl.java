@@ -27,8 +27,10 @@ import com.mwangahakika.backend.repository.WalletTransactionRepository;
 import com.mwangahakika.backend.service.TopUpRequestService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class TopUpRequestServiceImpl implements TopUpRequestService {
 
@@ -41,6 +43,8 @@ public class TopUpRequestServiceImpl implements TopUpRequestService {
     @Transactional
     public TopUpRequestResponse create(Long authenticatedUserId, CreateTopUpRequestRequest request) {
         if (request.amount() == null || request.amount().compareTo(BigDecimal.ZERO) <= 0) {
+            log.warn("Top-up request rejected because amount is invalid: userId={}, amount={}",
+                    authenticatedUserId, request.amount());
             throw new IllegalArgumentException("Top-up amount must be greater than zero.");
         }
 
@@ -48,10 +52,14 @@ public class TopUpRequestServiceImpl implements TopUpRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("Wallet not found: " + request.walletId()));
 
         if (!wallet.getUser().getId().equals(authenticatedUserId)) {
+            log.warn("Top-up request rejected because wallet ownership check failed: userId={}, walletId={}, walletOwnerId={}",
+                    authenticatedUserId, wallet.getId(), wallet.getUser().getId());
             throw new UnauthorizedActionException("You can only request a top-up for your own wallet.");
         }
 
         if (wallet.getStatus() != WalletStatus.ACTIVE) {
+            log.warn("Top-up request rejected because wallet is not active: walletId={}, status={}",
+                    wallet.getId(), wallet.getStatus());
             throw new IllegalStateException("Wallet is not active.");
         }
 
@@ -72,6 +80,8 @@ public class TopUpRequestServiceImpl implements TopUpRequestService {
                 .build();
 
         TopUpRequest saved = topUpRequestRepository.save(topUpRequest);
+        log.info("Top-up request created: requestId={}, userId={}, walletId={}, amount={}",
+                saved.getId(), authenticatedUserId, wallet.getId(), saved.getAmount());
 
         return toResponse(saved);
     }
@@ -101,6 +111,8 @@ public class TopUpRequestServiceImpl implements TopUpRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("Top-up request not found: " + requestId));
 
         if (topUpRequest.getStatus() != TopUpRequestStatus.PENDING) {
+            log.warn("Top-up approval rejected because request is not pending: requestId={}, status={}",
+                    requestId, topUpRequest.getStatus());
             throw new IllegalStateException("Only pending top-up requests can be approved.");
         }
 
@@ -108,6 +120,8 @@ public class TopUpRequestServiceImpl implements TopUpRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("Wallet not found: " + topUpRequest.getWallet().getId()));
 
         if (wallet.getStatus() != WalletStatus.ACTIVE) {
+            log.warn("Top-up approval rejected because wallet is not active: requestId={}, walletId={}, status={}",
+                    requestId, wallet.getId(), wallet.getStatus());
             throw new IllegalStateException("Wallet is not active.");
         }
 
@@ -148,6 +162,8 @@ public class TopUpRequestServiceImpl implements TopUpRequestService {
         }
 
         TopUpRequest saved = topUpRequestRepository.save(topUpRequest);
+        log.info("Top-up request approved: requestId={}, adminUserId={}, walletId={}, amount={}, reference={}",
+                saved.getId(), adminUserId, wallet.getId(), saved.getAmount(), reference);
 
         return toResponse(saved);
     }
@@ -159,6 +175,8 @@ public class TopUpRequestServiceImpl implements TopUpRequestService {
                 .orElseThrow(() -> new ResourceNotFoundException("Top-up request not found: " + requestId));
 
         if (topUpRequest.getStatus() != TopUpRequestStatus.PENDING) {
+            log.warn("Top-up rejection rejected because request is not pending: requestId={}, status={}",
+                    requestId, topUpRequest.getStatus());
             throw new IllegalStateException("Only pending top-up requests can be rejected.");
         }
 
@@ -177,6 +195,8 @@ public class TopUpRequestServiceImpl implements TopUpRequestService {
         }
 
         TopUpRequest saved = topUpRequestRepository.save(topUpRequest);
+        log.info("Top-up request rejected: requestId={}, adminUserId={}, walletId={}, amount={}",
+                saved.getId(), adminUserId, saved.getWallet().getId(), saved.getAmount());
 
         return toResponse(saved);
     }

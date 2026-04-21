@@ -21,8 +21,10 @@ import com.mwangahakika.backend.repository.WalletTransactionRepository;
 import com.mwangahakika.backend.service.WalletService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class WalletServiceImpl implements WalletService {
 
@@ -34,6 +36,8 @@ public class WalletServiceImpl implements WalletService {
     @Transactional
     public AdminTopUpResponse adminTopUp(Long adminUserId, Long walletId, AdminTopUpRequest request) {
         if (request.amount() == null || request.amount().compareTo(BigDecimal.ZERO) <= 0) {
+            log.warn("Admin top-up rejected because amount is invalid: adminUserId={}, walletId={}, amount={}",
+                    adminUserId, walletId, request.amount());
             throw new IllegalArgumentException("Top-up amount must be greater than zero.");
         }
 
@@ -41,6 +45,8 @@ public class WalletServiceImpl implements WalletService {
                 .orElseThrow(() -> new ResourceNotFoundException("Wallet not found: " + walletId));
 
         if (wallet.getStatus() != WalletStatus.ACTIVE) {
+            log.warn("Admin top-up rejected because wallet is not active: adminUserId={}, walletId={}, status={}",
+                    adminUserId, walletId, wallet.getStatus());
             throw new IllegalStateException("Wallet is not active.");
         }
 
@@ -73,6 +79,8 @@ public class WalletServiceImpl implements WalletService {
                 .build();
 
         walletTransactionRepository.save(transaction);
+        log.info("Admin top-up completed: adminUserId={}, walletId={}, amount={}, reference={}",
+                adminUserId, wallet.getId(), request.amount(), reference);
 
         return new AdminTopUpResponse(
                 wallet.getId(),

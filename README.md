@@ -35,10 +35,59 @@ The app reads configuration from environment variables.
 | `DB_URL` | `jdbc:postgresql://localhost:5432/walletdb` |
 | `DB_USERNAME` | `walletdbuser` |
 | `DB_PASSWORD` | `walletdbpass` |
-| `JWT_SECRET` | built-in dev default |
+| `JWT_SECRET` |  |
 | `JWT_EXPIRATION` | `86400000` |
 | `SERVER_PORT` | `8080` |
 | `JPA_SHOW_SQL` | `true` |
+
+## Run with Docker
+
+From the `backend` directory:
+
+Default: let Docker Compose read values from `.env`:
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Optional: run without creating `.env` by passing inline environment variables:
+
+Unix shells (`zsh`, `bash`, Git Bash, WSL):
+
+```bash
+POSTGRES_DB=walletdb \
+POSTGRES_USER=walletdbuser \
+POSTGRES_PASSWORD=walletdbpass \
+DB_URL=jdbc:postgresql://db:5432/walletdb \
+DB_USERNAME=walletdbuser \
+DB_PASSWORD=walletdbpass \
+JWT_SECRET=kYmNZ/GsmJ0BD5lo5UbhcOJzHRycHbehXwS82XH5J4U= \
+JWT_EXPIRATION=86400000 \
+SPRING_PROFILES_ACTIVE=dev \
+SERVER_PORT=8080 \
+JPA_SHOW_SQL=false \
+docker compose up --build
+```
+
+
+API will be available at:
+- `http://localhost:8080`
+- Swagger UI: `http://localhost:8080/swagger-ui.html`
+- OpenAPI definition: `http://localhost:8080/v3/api-docs`
+
+
+Stop containers:
+
+```bash
+docker compose down
+```
+
+Stop and remove database volume too:
+
+```bash
+docker compose down -v
+```
 
 ## Run locally
 
@@ -60,63 +109,18 @@ JWT_SECRET=ZwHb76tYhO6UCtde6fdjaMkYS5SeLfruZ0LOB6WyOuY= \
 
 ## Run tests
 
+From the `backend` directory:
+
+Run the full test suite:
+
 ```bash
 ./mvnw test
 ```
 
-## Run with Docker
-
-From the `backend` directory:
-
-Option 1: create a local env file first:
+Run a single test class:
 
 ```bash
-cp .env.example .env
-```
-
-Update `JWT_SECRET` in `.env` before starting the app.
-
-```bash
-docker compose up --build
-```
-
-Option 2: run with inline environment variables:
-
-```bash
-POSTGRES_DB=walletdb \
-POSTGRES_USER=walletdbuser \
-POSTGRES_PASSWORD=walletdbpass \
-DB_URL=jdbc:postgresql://db:5432/walletdb \
-DB_USERNAME=walletdbuser \
-DB_PASSWORD=walletdbpass \
-JWT_SECRET=kYmNZ/GsmJ0BD5lo5UbhcOJzHRycHbehXwS82XH5J4U= \
-JWT_EXPIRATION=86400000 \
-SPRING_PROFILES_ACTIVE=dev \
-SERVER_PORT=8080 \
-JPA_SHOW_SQL=false \
-docker compose up --build
-```
-
-Generate a sample JWT secret with:
-
-```bash
-openssl rand -base64 32
-```
-
-API will be available at:
-- `http://localhost:8080`
-- Swagger UI: `http://localhost:8080/swagger-ui.html`
-
-Stop containers:
-
-```bash
-docker compose down
-```
-
-Stop and remove database volume too:
-
-```bash
-docker compose down -v
+./mvnw -Dtest=FlowTest test
 ```
 
 ## Main endpoints
@@ -148,9 +152,3 @@ docker compose down -v
 - admin top-up is immediate
 - top-up request approval credits the wallet and records a wallet transaction
 
-## Notes
-
-- Flyway migrations run automatically on startup
-- `ddl-auto` is set to `validate`
-- Docker setup uses PostgreSQL 16 and starts the backend after the database is healthy
-- committed config now uses `.env.example`; real values should stay in local `.env`

@@ -27,8 +27,10 @@ import com.mwangahakika.backend.repository.WalletTransactionRepository;
 import com.mwangahakika.backend.service.TransferService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class TransferServiceImpl implements TransferService {
 
@@ -48,6 +50,8 @@ public class TransferServiceImpl implements TransferService {
         Long receiverId = request.receiverWalletId();
 
         if (senderId.equals(receiverId)) {
+            log.warn("Transfer rejected because sender and receiver wallet are the same: userId={}, walletId={}",
+                    authenticatedUserId, senderId);
             throw new IllegalArgumentException("Sender and receiver wallets must be different.");
         }
 
@@ -130,6 +134,15 @@ public class TransferServiceImpl implements TransferService {
 
         walletTransactionRepository.save(senderTx);
         walletTransactionRepository.save(receiverTx);
+        log.info(
+                "Transfer completed: userId={}, transferId={}, reference={}, senderWalletId={}, receiverWalletId={}, amount={}",
+                authenticatedUserId,
+                transfer.getId(),
+                transfer.getReference(),
+                senderWallet.getId(),
+                receiverWallet.getId(),
+                transfer.getAmount()
+        );
 
         return new TransferResponse(
                 transfer.getId(),
@@ -155,35 +168,46 @@ public class TransferServiceImpl implements TransferService {
 
     private void validateWalletOwnership(Long authenticatedUserId, Wallet senderWallet) {
         if (!senderWallet.getUser().getId().equals(authenticatedUserId)) {
+            log.warn("Transfer rejected because wallet ownership check failed: userId={}, senderWalletId={}, walletOwnerId={}",
+                    authenticatedUserId, senderWallet.getId(), senderWallet.getUser().getId());
             throw new UnauthorizedActionException("You can only transfer from your own wallet.");
         }
     }
 
     private void validateWalletStatuses(Wallet senderWallet, Wallet receiverWallet) {
         if (senderWallet.getStatus() != WalletStatus.ACTIVE) {
+            log.warn("Transfer rejected because sender wallet is not active: senderWalletId={}, status={}",
+                    senderWallet.getId(), senderWallet.getStatus());
             throw new IllegalStateException("Sender wallet is not active.");
         }
         if (receiverWallet.getStatus() != WalletStatus.ACTIVE) {
+            log.warn("Transfer rejected because receiver wallet is not active: receiverWalletId={}, status={}",
+                    receiverWallet.getId(), receiverWallet.getStatus());
             throw new IllegalStateException("Receiver wallet is not active.");
         }
     }
 
     private void validateCurrencies(Wallet senderWallet, Wallet receiverWallet) {
         if (!senderWallet.getCurrency().equals(receiverWallet.getCurrency())) {
+            log.warn("Transfer rejected because currencies do not match: senderWalletId={}, receiverWalletId={}, senderCurrency={}, receiverCurrency={}",
+                    senderWallet.getId(), receiverWallet.getId(), senderWallet.getCurrency(), receiverWallet.getCurrency());
             throw new IllegalArgumentException("Cross-currency transfers are not supported.");
         }
     }
 
     private void validateTransferAmount(BigDecimal amount, BigDecimal senderBalance) {
         if (amount.compareTo(MIN_TRANSFER_AMOUNT) < 0) {
+            log.warn("Transfer rejected because amount is below minimum: amount={}, minimum={}", amount, MIN_TRANSFER_AMOUNT);
             throw new IllegalArgumentException("Transfer amount is below the minimum allowed.");
         }
 
         if (amount.compareTo(MAX_TRANSFER_AMOUNT) > 0) {
+            log.warn("Transfer rejected because amount exceeds maximum: amount={}, maximum={}", amount, MAX_TRANSFER_AMOUNT);
             throw new IllegalArgumentException("Transfer amount exceeds the maximum allowed.");
         }
 
         if (senderBalance.compareTo(amount) < 0) {
+            log.warn("Transfer rejected because sender balance is insufficient: amount={}, senderBalance={}", amount, senderBalance);
             throw new InsufficientBalanceException("Insufficient wallet balance.");
         }
     }

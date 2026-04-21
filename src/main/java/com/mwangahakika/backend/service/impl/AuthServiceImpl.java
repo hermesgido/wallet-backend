@@ -26,8 +26,10 @@ import com.mwangahakika.backend.service.AuthService;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
 
@@ -48,6 +50,8 @@ public class AuthServiceImpl implements AuthService {
 
         AuthenticatedUser user = (AuthenticatedUser) authentication.getPrincipal();
         String token = jwtService.generateToken(user);
+        log.info("User logged in successfully: userId={}, email={}, role={}",
+                user.getId(), user.getEmail(), user.getRole());
 
         return new AuthResponse(token);
     }
@@ -57,6 +61,7 @@ public class AuthServiceImpl implements AuthService {
     public RegisterResponse register(RegisterRequest request) {
 
         if (userRepository.existsByEmail(request.email())) {
+            log.warn("Registration rejected because email already exists: email={}", request.email());
             throw new IllegalArgumentException("Email already exists");
         }
 
@@ -84,6 +89,8 @@ public class AuthServiceImpl implements AuthService {
                 .build();
 
         Wallet savedWallet = walletRepository.save(wallet);
+        log.info("User registered successfully: userId={}, email={}, walletId={}",
+                savedUser.getId(), savedUser.getEmail(), savedWallet.getId());
 
         return new RegisterResponse(
                 savedUser.getId(),
