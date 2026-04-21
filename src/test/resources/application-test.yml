@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:walletdb;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  sql:
+    init:
+      mode: never
+app:
+  jwt:
+    secret: ZwHb76tYhO6UCtde6fdjaMkYS5SeLfruZ0LOB6WyOuY=
+    expiration: 86400000
