@@ -168,3 +168,10 @@ Purpose of the structure:
 - users can only request top-up for their own wallet
 - admin top-up is immediate
 - top-up request approval credits the wallet and records a wallet transaction
+
+## Technical decisions and trade-offs
+
+Spring Boot was chosen because it is a strong fit for enterprise backend systems, especially in banking-style environments where reliability, transactional consistency, security, and maintainability matter more than minimal framework overhead. It provides mature support for layered application design, validation, security, database integration, and transactional workflows, which makes it well suited for wallet operations such as transfers and top-ups.
+
+PostgreSQL was selected because it is a proven relational database with strong transactional guarantees and data integrity features, which are important for financial operations.
+
